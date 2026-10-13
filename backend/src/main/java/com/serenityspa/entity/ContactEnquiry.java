@@ -45,10 +45,22 @@ public class ContactEnquiry {
     @Column(name = "is_read", nullable = false)
     private boolean isRead = false;
 
+    @Column(columnDefinition = "TEXT")
+    private String reply;
+
+    @Column(name = "replied_at")
+    private LocalDateTime repliedAt;
+
+    @Column(name = "status", length = 30)
+    private String status = "PENDING";
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
         this.isRead = false;
+        if (this.status == null) {
+            this.status = "PENDING";
+        }
     }
 
     public ContactEnquiry() {
@@ -124,5 +136,29 @@ public class ContactEnquiry {
 
     public void setRead(boolean read) {
         isRead = read;
+    }
+
+    public String getReply() {
+        return reply;
+    }
+
+    public void setReply(String reply) {
+        this.reply = reply;
+    }
+
+    public LocalDateTime getRepliedAt() {
+        return repliedAt;
+    }
+
+    public void setRepliedAt(LocalDateTime repliedAt) {
+        this.repliedAt = repliedAt;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
     }
 }

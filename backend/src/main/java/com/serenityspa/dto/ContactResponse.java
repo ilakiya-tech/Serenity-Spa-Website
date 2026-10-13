@@ -10,6 +10,10 @@ public class ContactResponse {
     private String subject;
     private String message;
     private LocalDateTime createdAt;
+    private boolean isRead;
+    private String reply;
+    private LocalDateTime repliedAt;
+    private String status;
 
     public ContactResponse() {}
 
@@ -21,6 +25,21 @@ public class ContactResponse {
         this.subject = subject;
         this.message = message;
         this.createdAt = createdAt;
+    }
+
+    public ContactResponse(Long id, String name, String email, String phone, String subject, String message,
+                           LocalDateTime createdAt, boolean isRead, String reply, LocalDateTime repliedAt, String status) {
+        this.id = id;
+        this.name = name;
+        this.email = email;
+        this.phone = phone;
+        this.subject = subject;
+        this.message = message;
+        this.createdAt = createdAt;
+        this.isRead = isRead;
+        this.reply = reply;
+        this.repliedAt = repliedAt;
+        this.status = status;
     }
 
     public Long getId() {
@@ -77,5 +96,37 @@ public class ContactResponse {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public boolean isRead() {
+        return isRead;
+    }
+
+    public void setRead(boolean read) {
+        isRead = read;
+    }
+
+    public String getReply() {
+        return reply;
+    }
+
+    public void setReply(String reply) {
+        this.reply = reply;
+    }
+
+    public LocalDateTime getRepliedAt() {
+        return repliedAt;
+    }
+
+    public void setRepliedAt(LocalDateTime repliedAt) {
+        this.repliedAt = repliedAt;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
     }
 }

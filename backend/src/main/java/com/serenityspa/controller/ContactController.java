@@ -27,4 +27,16 @@ public class ContactController {
         ContactResponse response = contactService.saveEnquiry(request);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
+
+    @GetMapping("/contact/my")
+    @Operation(summary = "Get contact messages and replies for logged-in user")
+    public ResponseEntity<java.util.List<ContactResponse>> getMyEnquiries(@org.springframework.security.core.annotation.AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails) {
+        return ResponseEntity.ok(contactService.getEnquiriesForUser(userDetails.getUsername()));
+    }
+
+    @GetMapping("/contact/by-email")
+    @Operation(summary = "Get contact messages and replies by email (Public/Guest)")
+    public ResponseEntity<java.util.List<ContactResponse>> getEnquiriesByEmail(@RequestParam String email) {
+        return ResponseEntity.ok(contactService.getEnquiriesForUser(email));
+    }
 }

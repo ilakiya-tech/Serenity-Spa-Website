@@ -34,10 +34,53 @@ public class MembershipService {
         this.userRepository = userRepository;
     }
 
+    public List<MembershipPlanResponse> getAllPlans() {
+        return membershipPlanRepository.findAll().stream()
+                .map(this::mapToPlanResponse)
+                .collect(Collectors.toList());
+    }
+
     public List<MembershipPlanResponse> getAllActivePlans() {
         return membershipPlanRepository.findByActiveTrue().stream()
                 .map(this::mapToPlanResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public MembershipPlanResponse createPlan(com.serenityspa.dto.CreateMembershipPlanRequest request) {
+        if (membershipPlanRepository.findByName(request.getName()).isPresent()) {
+            throw new ConflictException("A membership plan with the name '" + request.getName() + "' already exists");
+        }
+
+        MembershipPlan plan = new MembershipPlan(
+                request.getName(),
+                request.getDescription(),
+                request.getPrice(),
+                request.getDurationDays(),
+                request.getDiscountPercentage(),
+                request.getBenefits(),
+                true
+        );
+
+        MembershipPlan saved = membershipPlanRepository.save(plan);
+        return mapToPlanResponse(saved);
+    }
+
+    @Transactional
+    public void removePlan(Long planId) {
+        MembershipPlan plan = membershipPlanRepository.findById(planId)
+                .orElseThrow(() -> new ResourceNotFoundException("Membership plan not found with id: " + planId));
+
+        // 1. Mark the plan as inactive so it is no longer purchasable or active in system
+        plan.setActive(false);
+        membershipPlanRepository.save(plan);
+
+        // 2. Immediately revoke and deactivate all user memberships tied to this removed plan
+        List<UserMembership> userMemberships = userMembershipRepository.findByMembershipPlanId(planId);
+        for (UserMembership um : userMemberships) {
+            um.setStatus(MembershipStatus.CANCELLED);
+        }
+        userMembershipRepository.saveAll(userMemberships);
     }
 
     public MembershipPlanResponse getPlanById(Long id) {

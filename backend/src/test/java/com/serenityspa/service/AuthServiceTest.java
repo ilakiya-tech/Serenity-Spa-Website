@@ -78,6 +78,15 @@ public class AuthServiceTest {
     }
 
     @Test
+    void register_ThrowsException_WhenPasswordsDoNotMatch() {
+        RegisterRequest req = new RegisterRequest("Jane Doe", "jane@example.com", "secret123", "mismatch");
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> authService.register(req));
+        assertEquals("Passwords do not match", ex.getMessage());
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
     void login_Success() {
         LoginRequest req = new LoginRequest("jane@example.com", "secret123");
 

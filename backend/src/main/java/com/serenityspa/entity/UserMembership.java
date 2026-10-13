@@ -80,6 +80,7 @@ public class UserMembership {
 
     public boolean isCurrentlyActive() {
         LocalDate today = LocalDate.now();
-        return status == MembershipStatus.ACTIVE && !today.isBefore(startDate) && !today.isAfter(endDate);
+        boolean planActive = membershipPlan == null || membershipPlan.isActive();
+        return status == MembershipStatus.ACTIVE && planActive && !today.isBefore(startDate) && !today.isAfter(endDate);
     }
 }

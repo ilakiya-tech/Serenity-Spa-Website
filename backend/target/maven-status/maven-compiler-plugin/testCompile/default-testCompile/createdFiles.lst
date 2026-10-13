@@ -1,3 +1,4 @@
+com\serenityspa\service\AuthServiceTest.class
+com\serenityspa\service\ContactServiceTest.class
 com\serenityspa\service\AppointmentServiceTest.class
 com\serenityspa\service\ReviewServiceTest.class
-com\serenityspa\service\AuthServiceTest.class

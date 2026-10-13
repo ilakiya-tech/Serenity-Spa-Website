@@ -36,6 +36,11 @@ public class AuthService {
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
+        if (request.getConfirmPassword() != null && !request.getConfirmPassword().isBlank()
+                && !request.getPassword().equals(request.getConfirmPassword())) {
+            throw new IllegalArgumentException("Passwords do not match");
+        }
+
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new ConflictException("Email is already registered: " + request.getEmail());
         }

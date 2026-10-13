@@ -118,4 +118,8 @@ export interface ContactEnquiry {
   subject: string;
   message: string;
   createdAt?: string;
+  read?: boolean;
+  reply?: string;
+  repliedAt?: string;
+  status?: string;
 }

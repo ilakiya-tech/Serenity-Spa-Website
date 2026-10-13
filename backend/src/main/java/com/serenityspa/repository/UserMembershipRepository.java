@@ -15,7 +15,7 @@ import java.util.Optional;
 public interface UserMembershipRepository extends JpaRepository<UserMembership, Long> {
     List<UserMembership> findByUserIdOrderByCreatedAtDesc(Long userId);
 
-    @Query("SELECT um FROM UserMembership um WHERE um.user.id = :userId AND um.status = :status AND :today BETWEEN um.startDate AND um.endDate ORDER BY um.endDate DESC")
+    @Query("SELECT um FROM UserMembership um WHERE um.user.id = :userId AND um.status = :status AND um.membershipPlan.active = true AND :today BETWEEN um.startDate AND um.endDate ORDER BY um.endDate DESC")
     List<UserMembership> findActiveMemberships(
             @Param("userId") Long userId,
             @Param("status") MembershipStatus status,
@@ -27,10 +27,12 @@ public interface UserMembershipRepository extends JpaRepository<UserMembership, 
         return active.isEmpty() ? Optional.empty() : Optional.of(active.get(0));
     }
 
-    @Query("SELECT um FROM UserMembership um JOIN FETCH um.user JOIN FETCH um.membershipPlan WHERE um.status = 'ACTIVE' AND :today BETWEEN um.startDate AND um.endDate ORDER BY um.endDate ASC")
+    @Query("SELECT um FROM UserMembership um JOIN FETCH um.user JOIN FETCH um.membershipPlan WHERE um.status = 'ACTIVE' AND um.membershipPlan.active = true AND :today BETWEEN um.startDate AND um.endDate ORDER BY um.endDate ASC")
     List<UserMembership> findAllCurrentlyActive(@Param("today") LocalDate today);
 
     default List<UserMembership> findAllCurrentlyActive() {
         return findAllCurrentlyActive(LocalDate.now());
     }
+
+    List<UserMembership> findByMembershipPlanId(Long membershipPlanId);
 }

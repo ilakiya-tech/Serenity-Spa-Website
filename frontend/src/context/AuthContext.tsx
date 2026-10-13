@@ -6,7 +6,7 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   login: (email: string, password: string) => Promise<User>;
-  register: (fullName: string, email: string, password: string) => Promise<void>;
+  register: (fullName: string, email: string, password: string, confirmPassword?: string) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
   isAdmin: boolean;
@@ -45,8 +45,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return userData;
   };
 
-  const register = async (fullName: string, email: string, password: string) => {
-    const res = await authApi.register({ fullName, email, password });
+  const register = async (fullName: string, email: string, password: string, confirmPassword?: string) => {
+    const res = await authApi.register({ fullName, email, password, confirmPassword });
     const { token, id, role } = res.data;
     const userData: User = { id, fullName, email: res.data.email, role };
     setToken(token);

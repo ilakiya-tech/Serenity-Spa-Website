@@ -15,7 +15,7 @@ import type {
 } from '../types';
 
 export const authApi = {
-  register: (data: { fullName: string; email: string; password: string }) =>
+  register: (data: { fullName: string; email: string; password: string; confirmPassword?: string }) =>
     api.post<AuthResponse>('/auth/register', data),
   login: (data: { email: string; password: string }) =>
     api.post<AuthResponse>('/auth/login', data),
@@ -76,6 +76,10 @@ export const reviewsApi = {
 export const contactApi = {
   submit: (data: ContactEnquiry) =>
     api.post<ContactEnquiry>('/contact', data),
+  getMy: () =>
+    api.get<ContactEnquiry[]>('/contact/my'),
+  getByEmail: (email: string) =>
+    api.get<ContactEnquiry[]>(`/contact/by-email?email=${encodeURIComponent(email)}`),
 };
 
 export const adminApi = {
@@ -90,9 +94,16 @@ export const adminApi = {
   getActiveMemberships: () => api.get<any[]>('/admin/memberships'),
   deactivateMembership: (id: number) =>
     api.patch<{ message: string }>(`/admin/memberships/${id}/deactivate`),
+  getAllMembershipPlans: () => api.get<MembershipPlan[]>('/admin/membership-plans'),
+  createMembershipPlan: (plan: Partial<MembershipPlan>) =>
+    api.post<MembershipPlan>('/admin/membership-plans', plan),
+  deleteMembershipPlan: (id: number) =>
+    api.delete<{ message: string }>(`/admin/membership-plans/${id}`),
   // messages
   getMessages: () => api.get<any[]>('/admin/messages'),
   markMessageRead: (id: number) => api.patch<any>(`/admin/messages/${id}/read`),
+  replyToMessage: (id: number, reply: string) =>
+    api.patch<ContactEnquiry>(`/admin/messages/${id}/reply`, { reply }),
   // reviews
   getReviews: () => api.get<any[]>('/admin/reviews'),
 };

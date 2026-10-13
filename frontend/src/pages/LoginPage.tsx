@@ -10,6 +10,7 @@ const LoginPage: React.FC = () => {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -23,8 +24,14 @@ const LoginPage: React.FC = () => {
 
     try {
       if (isRegister) {
+        // Client-side password confirmation check
+        if (password !== confirmPassword) {
+          setError('Passwords do not match. Please re-enter.');
+          setLoading(false);
+          return;
+        }
         // Registration always creates a USER account
-        await register(fullName, email, password);
+        await register(fullName, email, password, confirmPassword);
         navigate('/booking');
       } else {
         const userData = await login(email, password);
@@ -157,6 +164,21 @@ const LoginPage: React.FC = () => {
                 style={{ width: '100%', padding: '12px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '15px', boxSizing: 'border-box' }}
               />
             </div>
+
+            {isRegister && (
+              <div style={{ marginBottom: '24px' }}>
+                <label style={{ display: 'block', marginBottom: '6px', color: spaGold, fontWeight: 500, fontSize: '16px' }}>Confirm Password</label>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  style={{ width: '100%', padding: '12px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '15px', boxSizing: 'border-box' }}
+                />
+              </div>
+            )}
 
             <button
               type="submit"

@@ -77,7 +77,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Public Auth & Contact endpoints
                         .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
-                        .requestMatchers("/api/contact").permitAll()
+                        .requestMatchers("/api/contact/**").permitAll()
 
                         // Public Memberships and Reviews viewing
                         .requestMatchers(HttpMethod.GET, "/api/memberships/plans/**").permitAll()

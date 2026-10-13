@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { adminApi } from '../services/serenityService';
-import type { Appointment } from '../types';
+import type { Appointment, MembershipPlan } from '../types';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 const spaGold = '#9b8578';
@@ -66,10 +66,25 @@ const AdminPage: React.FC = () => {
   const [memLoading, setMemLoading] = useState(false);
   const [memMsg, setMemMsg] = useState<string | null>(null);
 
+  // Membership Plans state
+  const [plans, setPlans] = useState<MembershipPlan[]>([]);
+  const [plansLoading, setPlansLoading] = useState(false);
+  const [planFormOpen, setPlanFormOpen] = useState(false);
+  const [newPlanName, setNewPlanName] = useState('');
+  const [newPlanDesc, setNewPlanDesc] = useState('');
+  const [newPlanPrice, setNewPlanPrice] = useState('');
+  const [newPlanDuration, setNewPlanDuration] = useState('30');
+  const [newPlanDiscount, setNewPlanDiscount] = useState('15');
+  const [newPlanBenefits, setNewPlanBenefits] = useState('');
+  const [planSubmitting, setPlanSubmitting] = useState(false);
+
   // Contact messages state
   const [messages, setMessages] = useState<any[]>([]);
   const [msgLoading, setMsgLoading] = useState(false);
   const [expandedMsg, setExpandedMsg] = useState<number | null>(null);
+  const [replyTextMap, setReplyTextMap] = useState<Record<number, string>>({});
+  const [replySubmitting, setReplySubmitting] = useState<number | null>(null);
+  const [replyFeedback, setReplyFeedback] = useState<{ id: number; text: string; isError?: boolean } | null>(null);
 
   // Review state
   const [reviews, setReviews] = useState<any[]>([]);
@@ -99,6 +114,14 @@ const AdminPage: React.FC = () => {
     } catch {
       setMemMsg('Failed to load memberships.');
     } finally { setMemLoading(false); }
+  }, []);
+
+  const loadPlans = useCallback(async () => {
+    setPlansLoading(true);
+    try {
+      const res = await adminApi.getAllMembershipPlans();
+      setPlans(res.data);
+    } catch { /* silent */ } finally { setPlansLoading(false); }
   }, []);
 
   const loadMessages = useCallback(async () => {
@@ -133,10 +156,13 @@ const AdminPage: React.FC = () => {
 
   useEffect(() => {
     if (!isAdmin) return;
-    if (activeSection === 'memberships') loadMemberships();
+    if (activeSection === 'memberships') {
+      loadMemberships();
+      loadPlans();
+    }
     if (activeSection === 'messages') loadMessages();
     if (activeSection === 'reviews') loadReviews();
-  }, [activeSection, isAdmin, loadMemberships, loadMessages, loadReviews]);
+  }, [activeSection, isAdmin, loadMemberships, loadPlans, loadMessages, loadReviews]);
 
   // ─── Actions ─────────────────────────────────────────────────────────────
   const handleStatusChange = async (id: number, newStatus: 'CONFIRMED' | 'COMPLETED' | 'CANCELLED') => {
@@ -164,12 +190,72 @@ const AdminPage: React.FC = () => {
     }
   };
 
+  const handleCreatePlan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPlanName.trim() || !newPlanPrice) return;
+    setPlanSubmitting(true);
+    setMemMsg(null);
+    try {
+      await adminApi.createMembershipPlan({
+        name: newPlanName.trim(),
+        description: newPlanDesc.trim(),
+        price: parseFloat(newPlanPrice),
+        durationDays: parseInt(newPlanDuration) || 30,
+        discountPercentage: parseFloat(newPlanDiscount) || 15,
+        benefits: newPlanBenefits.trim(),
+      });
+      setMemMsg(`✓ New plan '${newPlanName}' created successfully!`);
+      setNewPlanName('');
+      setNewPlanDesc('');
+      setNewPlanPrice('');
+      setNewPlanBenefits('');
+      setPlanFormOpen(false);
+      loadPlans();
+    } catch (err: any) {
+      setMemMsg(`✗ ${err.response?.data?.message || 'Failed to create plan.'}`);
+    } finally {
+      setPlanSubmitting(false);
+    }
+  };
+
+  const handleDeletePlan = async (id: number, name: string) => {
+    if (!window.confirm(`Are you sure you want to remove '${name}'? This plan will immediately be revoked and removed for all active customers as well.`)) return;
+    setMemMsg(null);
+    try {
+      await adminApi.deleteMembershipPlan(id);
+      setMemMsg(`✓ Membership plan '${name}' removed and revoked from all customers.`);
+      loadPlans();
+      loadMemberships();
+      loadStats();
+    } catch (err: any) {
+      setMemMsg(`✗ ${err.response?.data?.message || 'Failed to remove plan.'}`);
+    }
+  };
+
   const handleMarkRead = async (id: number) => {
     try {
       await adminApi.markMessageRead(id);
       loadMessages();
       loadStats();
     } catch { /* silent */ }
+  };
+
+  const handleSendReply = async (id: number) => {
+    const text = replyTextMap[id]?.trim();
+    if (!text) return;
+    setReplySubmitting(id);
+    setReplyFeedback(null);
+    try {
+      await adminApi.replyToMessage(id, text);
+      setReplyFeedback({ id, text: '✓ Reply sent successfully!' });
+      setReplyTextMap(prev => ({ ...prev, [id]: '' }));
+      loadMessages();
+      loadStats();
+    } catch (err: any) {
+      setReplyFeedback({ id, text: err.response?.data?.message || 'Failed to send reply', isError: true });
+    } finally {
+      setReplySubmitting(null);
+    }
   };
 
   // ─── Guards ───────────────────────────────────────────────────────────────
@@ -372,14 +458,186 @@ const AdminPage: React.FC = () => {
               </div>
             )}
 
-            <div style={{ marginBottom: '16px' }}>
-              <button onClick={loadMemberships} style={actionBtn()}>↻ Refresh</button>
+            {/* ── 1. Membership Plans Catalog (Add / Remove) ── */}
+            <div style={{ ...card, marginBottom: '30px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <div>
+                  <h3 style={{ color: spaGold, margin: 0, fontFamily: "'Cormorant Garamond', serif" }}>Membership Plans Catalog</h3>
+                  <small style={{ color: '#888' }}>Create new plans or remove existing ones. Removing a plan revokes it immediately for all active members.</small>
+                </div>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button onClick={loadPlans} style={actionBtn()}>↻ Refresh Plans</button>
+                  <button
+                    onClick={() => setPlanFormOpen(!planFormOpen)}
+                    style={{ ...actionBtn(spaGold), color: 'white', backgroundColor: spaGold }}
+                  >
+                    {planFormOpen ? '✖ Close Form' : '+ Add New Plan'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Add New Plan Collapsible Form */}
+              {planFormOpen && (
+                <form onSubmit={handleCreatePlan} style={{ backgroundColor: '#f9f7f4', padding: '20px', borderRadius: '6px', marginBottom: '20px', border: '1px solid #eedcd1' }}>
+                  <h4 style={{ color: spaGold, marginTop: 0, marginBottom: '14px' }}>Create New Membership Plan</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', marginBottom: '14px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#666', marginBottom: '4px' }}>Plan Name *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Platinum Serenity"
+                        value={newPlanName}
+                        onChange={(e) => setNewPlanName(e.target.value)}
+                        style={{ width: '100%', padding: '8px 10px', border: '1px solid #ddd', borderRadius: '4px', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#666', marginBottom: '4px' }}>Monthly Price ($) *</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        required
+                        placeholder="e.g. 199.00"
+                        value={newPlanPrice}
+                        onChange={(e) => setNewPlanPrice(e.target.value)}
+                        style={{ width: '100%', padding: '8px 10px', border: '1px solid #ddd', borderRadius: '4px', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#666', marginBottom: '4px' }}>Discount Percentage (%) *</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="100"
+                        required
+                        placeholder="e.g. 20"
+                        value={newPlanDiscount}
+                        onChange={(e) => setNewPlanDiscount(e.target.value)}
+                        style={{ width: '100%', padding: '8px 10px', border: '1px solid #ddd', borderRadius: '4px', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#666', marginBottom: '4px' }}>Duration (Days) *</label>
+                      <input
+                        type="number"
+                        required
+                        placeholder="e.g. 30"
+                        value={newPlanDuration}
+                        onChange={(e) => setNewPlanDuration(e.target.value)}
+                        style={{ width: '100%', padding: '8px 10px', border: '1px solid #ddd', borderRadius: '4px', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: '14px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#666', marginBottom: '4px' }}>Description</label>
+                    <input
+                      type="text"
+                      placeholder="Short summary of the tier"
+                      value={newPlanDesc}
+                      onChange={(e) => setNewPlanDesc(e.target.value)}
+                      style={{ width: '100%', padding: '8px 10px', border: '1px solid #ddd', borderRadius: '4px', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '14px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#666', marginBottom: '4px' }}>Benefits (Comma separated list)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 20% Off All Massages, Unlimited Herbal Teas, Free Valet Parking"
+                      value={newPlanBenefits}
+                      onChange={(e) => setNewPlanBenefits(e.target.value)}
+                      style={{ width: '100%', padding: '8px 10px', border: '1px solid #ddd', borderRadius: '4px', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={planSubmitting}
+                    style={{
+                      padding: '10px 22px',
+                      backgroundColor: spaGold,
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: planSubmitting ? 'not-allowed' : 'pointer',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {planSubmitting ? 'Saving Plan…' : 'Save & Publish Plan'}
+                  </button>
+                </form>
+              )}
+
+              {/* Plans Table */}
+              {plansLoading ? (
+                <p style={{ color: '#888' }}>Loading plans…</p>
+              ) : plans.length === 0 ? (
+                <p style={{ color: '#aaa', textAlign: 'center' }}>No plans registered.</p>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr>
+                        <th style={th}>#ID</th>
+                        <th style={th}>Plan Name</th>
+                        <th style={th}>Monthly Price</th>
+                        <th style={th}>Member Discount</th>
+                        <th style={th}>Duration</th>
+                        <th style={th}>Status</th>
+                        <th style={th}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {plans.map((p) => (
+                        <tr key={p.id}>
+                          <td style={td}>#{p.id}</td>
+                          <td style={td}>
+                            <strong>{p.name}</strong><br />
+                            <small style={{ color: '#888' }}>{p.description}</small>
+                          </td>
+                          <td style={td}>${p.price}</td>
+                          <td style={td}><strong>{p.discountPercentage}%</strong></td>
+                          <td style={td}>{p.durationDays} days</td>
+                          <td style={td}>
+                            <span style={{
+                              padding: '2px 8px',
+                              borderRadius: '10px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              backgroundColor: p.active ? '#e6fffa' : '#fed7d7',
+                              color: p.active ? '#234e52' : '#9b2c2c',
+                            }}>
+                              {p.active ? 'ACTIVE' : 'INACTIVE / REMOVED'}
+                            </span>
+                          </td>
+                          <td style={td}>
+                            {p.active ? (
+                              <button
+                                style={actionBtn('#e53e3e')}
+                                onClick={() => handleDeletePlan(p.id, p.name)}
+                              >
+                                🗑️ Remove Plan
+                              </button>
+                            ) : (
+                              <span style={{ color: '#aaa', fontSize: '13px' }}>Removed</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
+
+            {/* ── 2. Active Customer Memberships List ── */}
+            <h3 style={{ color: spaGold, fontFamily: "'Cormorant Garamond', serif", marginBottom: '8px' }}>Active Customer Memberships</h3>
+            <p style={{ color: '#888', marginBottom: '14px' }}>Active subscriptions held by customers.</p>
 
             {memLoading ? (
               <p style={{ color: '#888' }}>Loading…</p>
             ) : memberships.length === 0 ? (
-              <div style={{ ...card, textAlign: 'center', color: '#aaa' }}>No active memberships.</div>
+              <div style={{ ...card, textAlign: 'center', color: '#aaa' }}>No active customer memberships.</div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', background: 'white', borderRadius: '6px', boxShadow: '0 4px 15px rgba(0,0,0,0.06)' }}>
@@ -461,14 +719,82 @@ const AdminPage: React.FC = () => {
                       <span style={{ color: '#555', marginLeft: '12px' }}>{m.subject}</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      {!m.read && <span style={{ ...badge('PENDING'), backgroundColor: spaLight }}>UNREAD</span>}
+                      {m.reply ? (
+                        <span style={{ ...badge('CONFIRMED'), backgroundColor: '#48bb78' }}>REPLIED</span>
+                      ) : !m.read ? (
+                        <span style={{ ...badge('PENDING'), backgroundColor: spaLight }}>UNREAD</span>
+                      ) : null}
                       <small style={{ color: '#aaa' }}>{new Date(m.createdAt).toLocaleDateString()}</small>
                       <span style={{ color: spaGold }}>{expandedMsg === m.id ? '▲' : '▼'}</span>
                     </div>
                   </div>
                   {expandedMsg === m.id && (
-                    <div style={{ marginTop: '12px', padding: '12px', background: '#f9f7f4', borderRadius: '4px', color: '#555', lineHeight: 1.6 }}>
-                      {m.message}
+                    <div style={{ marginTop: '12px' }}>
+                      <div style={{ padding: '12px', background: '#f9f7f4', borderRadius: '4px', color: '#555', lineHeight: 1.6, marginBottom: '14px' }}>
+                        <strong>Message:</strong><br />
+                        {m.message}
+                      </div>
+
+                      {/* Display existing reply if any */}
+                      {m.reply && (
+                        <div style={{ padding: '12px', background: '#e6fffa', borderLeft: '4px solid #38b2ac', borderRadius: '4px', marginBottom: '14px' }}>
+                          <strong style={{ color: '#234e52' }}>Admin Reply:</strong>
+                          <p style={{ margin: '4px 0 0', color: '#285e61', lineHeight: 1.5 }}>{m.reply}</p>
+                          {m.repliedAt && (
+                            <small style={{ color: '#4fd1c5', display: 'block', marginTop: '4px' }}>
+                              Sent: {new Date(m.repliedAt).toLocaleString()}
+                            </small>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Reply compose form */}
+                      <div style={{ borderTop: '1px solid #f0eae4', paddingTop: '12px' }} onClick={(e) => e.stopPropagation()}>
+                        <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: spaGold, marginBottom: '6px' }}>
+                          {m.reply ? 'Send Another Reply:' : 'Reply to Customer:'}
+                        </label>
+                        <textarea
+                          rows={3}
+                          placeholder={`Write a reply to ${m.name}...`}
+                          value={replyTextMap[m.id] || ''}
+                          onChange={(e) => setReplyTextMap(prev => ({ ...prev, [m.id]: e.target.value }))}
+                          style={{
+                            width: '100%',
+                            padding: '10px',
+                            border: '1px solid #ddd',
+                            borderRadius: '4px',
+                            fontSize: '14px',
+                            boxSizing: 'border-box',
+                            marginBottom: '8px',
+                            fontFamily: 'inherit',
+                          }}
+                        />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <button
+                            type="button"
+                            disabled={replySubmitting === m.id || !replyTextMap[m.id]?.trim()}
+                            onClick={() => handleSendReply(m.id)}
+                            style={{
+                              padding: '8px 18px',
+                              backgroundColor: spaGold,
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: (replySubmitting === m.id || !replyTextMap[m.id]?.trim()) ? 'not-allowed' : 'pointer',
+                              fontSize: '13px',
+                              fontWeight: 600,
+                              opacity: (!replyTextMap[m.id]?.trim() || replySubmitting === m.id) ? 0.6 : 1,
+                            }}
+                          >
+                            {replySubmitting === m.id ? 'Sending…' : '✉️ Send Reply'}
+                          </button>
+                          {replyFeedback && replyFeedback.id === m.id && (
+                            <span style={{ fontSize: '13px', color: replyFeedback.isError ? '#e53e3e' : '#38a169', fontWeight: 500 }}>
+                              {replyFeedback.text}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
